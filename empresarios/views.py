@@ -1,10 +1,11 @@
 from django.shortcuts import render
-from .models import Empresas
+from .models import Empresas, Documento, Metricas
 from django.contrib import messages
 from django.contrib.messages import constants
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse
+from django.http import HttpResponse
 
 @login_required(login_url='logar')
 def cadastrar_empresa(request):
@@ -117,3 +118,108 @@ def cadastrar_empresa(request):
         except:
             messages.add_message(request, constants.ERROR, 'Erro interno do sistema')
             return redirect('/empresarios/cadastrar_empresa')
+
+
+@login_required(login_url='logar')
+def listar_empresas(request):
+    if request.method == "GET":       
+        empresas = Empresas.objects.filter(user = request.user)
+
+        # parametro recebido via GET
+        empresa = request.GET.get('empresa')
+        if empresa:
+            empresas = empresas.filter(nome__icontains=empresa)
+
+
+        return render(request, 'listar_empresas.html', {'empresas':empresas})
+    
+    
+
+    
+def empresa(request, id):
+    if request.method == "GET":
+        empresa = Empresas.objects.get(id=id)
+        documentos = Documento.objects.filter(empresa=empresa)
+        metricas = Metricas.objects.filter(empresa=empresa)      
+        return render(request, 'empresa.html', {'empresa':empresa, 'documentos':documentos, 'metricas':metricas})
+    
+
+def add_doc(request, id):
+    
+    empresa = Empresas.objects.get(id=id)
+    titulo = request.POST.get('titulo')
+    arquivo = request.FILES.get('arquivo')
+    extencao = arquivo.name.split('.')[-1]
+
+    if empresa.user != request.user:
+        messages.add_message(request, constants.ERROR, 'Essa empresa não pertence a você')
+        return redirect(f'/empresarios/empresa/{id}')
+
+    if not titulo:
+        messages.add_message(request, constants.ERROR, 'Título é obrigatório')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    if not arquivo:
+        messages.add_message(request, constants.ERROR, 'Arquivo é obrigatório')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 2 MB em bytes
+
+    if arquivo.size > MAX_FILE_SIZE:
+        messages.add_message(request, constants.ERROR, 'O arquivo não pode exceder 10 MB.')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+
+    if extencao not in 'pdf':
+        messages.add_message(request, constants.ERROR, 'O arquivo deve ser um PDF')
+        return redirect(f'/empresarios/empresa/{id}')
+
+    
+    try:
+        doc = Documento(empresa=empresa, titulo=titulo, arquivo=arquivo)
+        doc.save()
+        messages.add_message(request, constants.SUCCESS, 'Documento cadastrado com sucesso')
+        return redirect(f'/empresarios/empresa/{id}')
+    except:
+        messages.add_message(request, constants.ERROR, 'Erro interno do sistema')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+
+def delete_doc(request, id):
+    doc = Documento.objects.get(id=id)
+    empresa = doc.empresa
+    if empresa.user != request.user:
+        messages.add_message(request, constants.ERROR, 'Esse documento não pertence a você')
+        return redirect(f'/empresarios/empresa/{empresa.id}')
+    
+    doc.delete()
+    messages.add_message(request, constants.SUCCESS, 'Documento deletado com sucesso')
+    return redirect(f'/empresarios/empresa/{empresa.id}')
+
+def add_metrica(request, id):
+    empresa = Empresas.objects.get(id=id)
+    titulo = request.POST.get('titulo')
+    valor = request.POST.get('valor')
+
+    if empresa.user != request.user:
+        messages.add_message(request, constants.ERROR, 'Essa empresa não pertence a você')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    if not titulo:
+        messages.add_message(request, constants.ERROR, 'Título é obrigatório')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    if not valor:
+        messages.add_message(request, constants.ERROR, 'Valor é obrigatório')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    try:
+        metrica = Metricas(empresa=empresa, titulo=titulo, valor=valor)
+        metrica.save()
+        messages.add_message(request, constants.SUCCESS, 'Métrica cadastrada com sucesso')
+        return redirect(f'/empresarios/empresa/{id}')
+    except:
+        messages.add_message(request, constants.ERROR, 'Erro interno do sistema')
+        return redirect(f'/empresarios/empresa/{id}')
+    
+
