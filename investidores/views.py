@@ -1,6 +1,7 @@
 from django.shortcuts import render
+from empresarios.models import Empresas, Documento, Metricas
+from django.contrib  import messages
 
-from empresarios.models import Empresas
 
 def sugestao(request):
     areas = Empresas.area_choices
@@ -26,3 +27,13 @@ def sugestao(request):
                 print(empresas_selecionadas)
 
         return render(request, 'sugestao.html', {'empresas': empresas_selecionadas, 'areas': areas})
+
+
+def ver_empresa(request, id):
+    empresa = Empresas.objects.get(id=id)
+    documentos = Documento.objects.filter(empresa=empresa)
+    metricas = Metricas.objects.filter(empresa=empresa)
+    if empresa.user != request.user:
+        messages.add_message(request, messages.INFO, 'Você não tem permissão para acessar esta página')
+       
+    return render(request, 'ver_empresa.html', {'empresa': empresa, 'documentos': documentos, 'metricas': metricas})
